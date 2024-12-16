@@ -12,6 +12,7 @@ export default function Home() {
   const [issues, setIssues] = useState([]);
   const [accountID, setAccountID] = useState(null);
   const [projects, setListOfProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   useEffect(() => {
     fetchToken();
@@ -81,10 +82,12 @@ export default function Home() {
       setListOfProjects((prev) => [...prev, element]);
     }
   };
-  const getIssues = async () => {
+  const getIssues = async (projectId) => {
     try {
       const response = await axios.get(
-        "https://developer.api.autodesk.com/construction/issues/v1/projects/69992872-3a99-46df-905c-3502673c7c49/issues",
+        "https://developer.api.autodesk.com/construction/issues/v1/projects/" +
+          projectId +
+          "/issues",
         {
           headers: {
             Authorization: "Bearer " + token,
@@ -181,10 +184,12 @@ export default function Home() {
   const onClickIssue = (issue) => {
     console.log("Issue clicked:", issue);
   };
-  const handleSelectProject = (project) => {};
+  const handleSelectProject = (project) => {
+    setSelectedProject(project);
+  };
   return (
     <div className={styles.page}>
-      <main className={styles.main}>
+      <div className={styles.main}>
         <Image
           className={styles.logo}
           src="/SU-YAPI LOGO_primary_eng.png"
@@ -193,15 +198,16 @@ export default function Home() {
           height={50}
           priority
         />
-        <h3>Code developed by BIM Unit</h3>
-        <h2>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>
+          Code developed by BIM Unit
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 600 }}>
           Get Issues, Model Sets, Clash Tests, Clash Test Resources and Assigned
           Clashes
-        </h2>
-        <p>
+        </div>
+        <div style={{ fontSize: 16 }}>
           To get started with the API, you need to grant access to your data.
-        </p>
-
+        </div>
         <div className={styles.ctas}>
           <a
             className={styles.primary}
@@ -219,18 +225,20 @@ export default function Home() {
           </a>
 
           {token && (
-            <>
+            <div>
               <Button
                 variant="outlined"
                 onClick={fetchToken}
                 sx={{
                   width: 200,
-                  backgroundColor: "black",
+                  height: 45,
+                  backgroundColor: "gray",
                   color: "white",
                   borderRadius: 10,
                   fontWeight: "bold",
                   fontSize: 12,
                   borderColor: "black",
+                  mr: 2,
                 }}
               >
                 Refresh Token
@@ -240,7 +248,8 @@ export default function Home() {
                 onClick={getProjects}
                 sx={{
                   width: 200,
-                  backgroundColor: "black",
+                  height: 45,
+                  backgroundColor: "gray",
                   color: "white",
                   borderRadius: 10,
                   fontWeight: "bold",
@@ -250,28 +259,80 @@ export default function Home() {
               >
                 Get Projects
               </Button>
-            </>
+            </div>
           )}
         </div>
-
         {token && projects.length > 0 && (
-          <>
-            <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={getIssues}
-              sx={{ width: 250 }}
+          <div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "start",
+                justifyContent: "space-around",
+                gap: 20,
+              }}
             >
-              Fetch issues
-            </Button>
+              <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 20,
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: "bold",
+                    minWidth: 400,
+                    minHeight: 50,
+                    border: "1px solid",
+                    padding: 8,
+                    fontSize: 16,
+                    borderRadius: 5,
+                    backgroundColor: "lightgray",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Selected Project: {selectedProject?.name}
+                </div>
+                {selectedProject && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={() => getIssues(selectedProject?.id)}
+                    sx={{
+                      width: 200,
+                      backgroundColor: "black",
+                      color: "white",
+                      borderRadius: 10,
+                      fontWeight: "bold",
+                      fontSize: 12,
+                      borderColor: "black",
+                    }}
+                  >
+                    Fetch issues
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {issues.length > 0 && DenseIssueTable(issues, onClickIssue)}
 
             <Button
               variant="outlined"
               color="primary"
               onClick={getModelsets}
-              sx={{ width: 250 }}
+              sx={{
+                width: 200,
+                backgroundColor: "black",
+                color: "white",
+                borderRadius: 10,
+                fontWeight: "bold",
+                fontSize: 12,
+                borderColor: "black",
+              }}
             >
               Fetch model sets
             </Button>
@@ -279,7 +340,15 @@ export default function Home() {
               variant="outlined"
               color="primary"
               onClick={getClashTests}
-              sx={{ width: 250 }}
+              sx={{
+                width: 200,
+                backgroundColor: "black",
+                color: "white",
+                borderRadius: 10,
+                fontWeight: "bold",
+                fontSize: 12,
+                borderColor: "black",
+              }}
             >
               Fetch clash tests
             </Button>
@@ -287,7 +356,15 @@ export default function Home() {
               variant="outlined"
               color="primary"
               onClick={getClashTestResources}
-              sx={{ width: 250 }}
+              sx={{
+                width: 200,
+                backgroundColor: "black",
+                color: "white",
+                borderRadius: 10,
+                fontWeight: "bold",
+                fontSize: 12,
+                borderColor: "black",
+              }}
             >
               Fetch clash test resources
             </Button>
@@ -295,14 +372,22 @@ export default function Home() {
               variant="outlined"
               color="primary"
               onClick={getAssignedClashes}
-              sx={{ width: 250 }}
+              sx={{
+                width: 200,
+                backgroundColor: "black",
+                color: "white",
+                borderRadius: 10,
+                fontWeight: "bold",
+                fontSize: 12,
+                borderColor: "black",
+              }}
             >
               Fetch assigned clashes
             </Button>
-          </>
+          </div>
         )}
-      </main>
-      <footer className={styles.footer}>
+      </div>
+      <div className={styles.footer}>
         <a
           href="https://www.linkedin.com/company/su-yapi/posts/?feedView=all"
           target="_blank"
@@ -331,7 +416,7 @@ export default function Home() {
           />
           Go to suyapi.com.tr →
         </a>
-      </footer>
+      </div>
     </div>
   );
 }

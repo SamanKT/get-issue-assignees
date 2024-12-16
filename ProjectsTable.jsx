@@ -26,6 +26,7 @@ const columns = [
 ];
 
 export default function ProjectsTable({ rows, onRowClick }) {
+  const rowRef = React.useRef([]);
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
 
@@ -58,15 +59,20 @@ export default function ProjectsTable({ rows, onRowClick }) {
           <TableBody>
             {rows
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((row) => {
+              .map((row, index) => {
                 return (
                   <TableRow
                     hover
+                    ref={(ref) => rowRef.current.push({ [index]: ref })}
                     role="checkbox"
                     tabIndex={-1}
                     key={row.name}
-                    sx={{ cursor: "pointer" }}
-                    onClick={() => onRowClick(row)}
+                    sx={{
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      onRowClick(row);
+                    }}
                   >
                     {columns.map((column) => {
                       const value = row[column.id];

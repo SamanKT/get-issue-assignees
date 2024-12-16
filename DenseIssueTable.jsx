@@ -47,7 +47,7 @@ export default function DenseIssueTable(rows, onClick) {
               Description
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }} align="left">
-              Is&nbsp;Published?
+              Thumbnail
             </TableCell>
           </TableRow>
         </TableHead>
@@ -73,7 +73,17 @@ export default function DenseIssueTable(rows, onClick) {
               <TableCell align="left">{row.openedBy}</TableCell>
               <TableCell align="left">{row.containerId}</TableCell>
               <TableCell align="left">{row.description}</TableCell>
-              <TableCell align="left">{row.published + ""}</TableCell>
+              <TableCell align="left">
+                <img
+                  src={row.snapshotUrn
+                    //.replace("urn:adsk.objects:os.object:", "")
+                    // .replace(":", "/")
+
+                    .replace(":", "/")}
+                  alt="thumbnail"
+                  style={{ width: "50px", height: "50px" }}
+                />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
