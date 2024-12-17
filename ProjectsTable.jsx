@@ -7,6 +7,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
+import { Typography } from "@mui/material";
 
 const columns = [
   { id: "name", label: "Name of Project", minWidth: 100 },
@@ -40,8 +41,11 @@ export default function ProjectsTable({ rows, onRowClick }) {
   };
 
   return (
-    <Paper sx={{ width: "100%", overflow: "hidden" }}>
+    <Paper sx={{ width: "100%", overflow: "hidden", mb: 4 }}>
       <TableContainer sx={{ maxHeight: 440 }}>
+        <Typography variant="h6" gutterBottom component="div">
+          Projects
+        </Typography>
         <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
@@ -50,6 +54,7 @@ export default function ProjectsTable({ rows, onRowClick }) {
                   key={column.id}
                   align={column.align}
                   style={{ minWidth: column.minWidth }}
+                  sx={{ backgroundColor: "lightgray", fontWeight: "bold" }}
                 >
                   {column.label}
                 </TableCell>

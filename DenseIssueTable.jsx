@@ -6,6 +6,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
+import { Typography } from "@mui/material";
 
 export default function DenseIssueTable(rows, onClick) {
   const formatDate = (dateString) => {
@@ -18,6 +19,9 @@ export default function DenseIssueTable(rows, onClick) {
   rows = rows.slice(0, 30);
   return (
     <TableContainer component={Paper}>
+      <Typography variant="h6" gutterBottom component="div">
+        Recent Issues
+      </Typography>
       <Table sx={{ minWidth: 750 }} aria-label="a dense table">
         <TableHead>
           <TableRow
@@ -46,9 +50,6 @@ export default function DenseIssueTable(rows, onClick) {
             <TableCell sx={{ fontWeight: "bold" }} align="left">
               Description
             </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
-              Thumbnail
-            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -66,24 +67,12 @@ export default function DenseIssueTable(rows, onClick) {
               onClick={() => onClick(row)}
             >
               <TableCell align="left">{row.displayId}</TableCell>
-
               <TableCell align="left">{row.title}</TableCell>
               <TableCell align="left">{row.status}</TableCell>
               <TableCell align="left">{formatDate(row.openedAt)}</TableCell>
               <TableCell align="left">{row.openedBy}</TableCell>
               <TableCell align="left">{row.containerId}</TableCell>
               <TableCell align="left">{row.description}</TableCell>
-              <TableCell align="left">
-                <img
-                  src={row.snapshotUrn
-                    //.replace("urn:adsk.objects:os.object:", "")
-                    // .replace(":", "/")
-
-                    .replace(":", "/")}
-                  alt="thumbnail"
-                  style={{ width: "50px", height: "50px" }}
-                />
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>

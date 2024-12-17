@@ -13,6 +13,7 @@ export default function Home() {
   const [accountID, setAccountID] = useState(null);
   const [projects, setListOfProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedIssue, setSelectedIssue] = useState(null);
 
   useEffect(() => {
     fetchToken();
@@ -94,9 +95,9 @@ export default function Home() {
           },
         }
       );
+      setIssues(response.data?.results);
 
       console.log("Issues Response:", response.data.results);
-      setIssues(response.data?.results);
     } catch (error) {
       console.error(
         "Error fetching issues:",
@@ -181,8 +182,9 @@ export default function Home() {
       );
     }
   };
-  const onClickIssue = (issue) => {
+  const onClickIssue = async (issue) => {
     console.log("Issue clicked:", issue);
+    setSelectedIssue(issue);
   };
   const handleSelectProject = (project) => {
     setSelectedProject(project);
@@ -238,7 +240,7 @@ export default function Home() {
                   fontWeight: "bold",
                   fontSize: 12,
                   borderColor: "black",
-                  mr: 2,
+                  mr: 1,
                 }}
               >
                 Refresh Token
@@ -319,7 +321,22 @@ export default function Home() {
             </div>
 
             {issues.length > 0 && DenseIssueTable(issues, onClickIssue)}
-
+            <div
+              style={{
+                fontWeight: "bold",
+                minWidth: 400,
+                minHeight: 50,
+                border: "1px solid",
+                padding: 8,
+                fontSize: 16,
+                borderRadius: 5,
+                backgroundColor: "lightgray",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              Selected Issue: {selectedIssue?.displayId}
+            </div>
             <Button
               variant="outlined"
               color="primary"
