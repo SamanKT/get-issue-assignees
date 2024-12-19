@@ -18,7 +18,7 @@ export default function DenseIssueTable(rows, onClick) {
   });
   rows = rows.slice(0, 30);
   return (
-    <TableContainer component={Paper}>
+    <TableContainer component={Paper} sx={{ maxHeight: 440, maxWidth: 800 }}>
       <Typography variant="h6" gutterBottom component="div">
         Recent Issues
       </Typography>
@@ -37,15 +37,6 @@ export default function DenseIssueTable(rows, onClick) {
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }} align="left">
               Status
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
-              Creation&nbsp;Date
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
-              Created &nbsp;by
-            </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
-              Container&nbsp;ID
             </TableCell>
             <TableCell sx={{ fontWeight: "bold" }} align="left">
               Description
@@ -69,9 +60,7 @@ export default function DenseIssueTable(rows, onClick) {
               <TableCell align="left">{row.displayId}</TableCell>
               <TableCell align="left">{row.title}</TableCell>
               <TableCell align="left">{row.status}</TableCell>
-              <TableCell align="left">{formatDate(row.openedAt)}</TableCell>
-              <TableCell align="left">{row.openedBy}</TableCell>
-              <TableCell align="left">{row.containerId}</TableCell>
+
               <TableCell align="left">{row.description}</TableCell>
             </TableRow>
           ))}

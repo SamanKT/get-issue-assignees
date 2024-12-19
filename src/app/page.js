@@ -17,8 +17,8 @@ export default function Home() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const grantAccessLinkRef = useRef(null);
-  const [cameraState, setCamera] = useState(null);
-  const [viewerState, setViewer] = useState(null);
+  const [persistentProjectName, setPersistentProjectName] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchToken();
@@ -29,6 +29,7 @@ export default function Home() {
     return btoa(credentials); // Encodes the string to Base64
   };
   const fetchToken = async () => {
+    setLoading(true);
     const queryParams = new URLSearchParams(window.location.search);
     const code = queryParams.get("code");
     console.log(code);
@@ -48,7 +49,7 @@ export default function Home() {
           },
         }
       );
-
+      console.log("Fetching token finished 100" + loading);
       console.log("Token Response:", response.data);
       const responseAccount = await axios.get(
         "https://developer.api.autodesk.com/project/v1/hubs",
@@ -64,6 +65,7 @@ export default function Home() {
       );
       setToken(response.data?.access_token);
       setAccountID(responseAccount.data.data[0]?.id.substring(2));
+      setLoading(false);
     } catch (error) {
       console.log(
         "Error fetching token:",
@@ -115,6 +117,7 @@ export default function Home() {
         }
       );
       setIssues(response.data?.results);
+      setPersistentProjectName(selectedProject?.name);
       console.log("Issues Response:", response.data.results);
     } catch (error) {
       console.error(
@@ -127,7 +130,7 @@ export default function Home() {
     }
   };
 
-  const getClashedElementCsv = async (containerID) => {
+  const getClashedElementInfo = async (containerID) => {
     try {
       const responseModelSets = await axios.get(
         "https://developer.api.autodesk.com/bim360/modelset/v3/containers/" +
@@ -145,9 +148,9 @@ export default function Home() {
       console.log("Modelsets Response:", modelsSets);
 
       let tests = [];
+      let clashIDs = [];
       for (let index = 0; index < modelsSets.length; index++) {
         const modelSet = modelsSets[index];
-
         const responseAssignedToIssue = await axios.get(
           "https://developer.api.autodesk.com/bim360/clash/v3/containers/" +
             containerID +
@@ -155,14 +158,20 @@ export default function Home() {
             modelSet.modelSetId +
             "/clashes/assigned?issueId=" +
             selectedIssue.id,
+
           {
             headers: {
               Authorization: "Bearer " + token,
             },
           }
         );
+
         if (responseAssignedToIssue.data.groups.length > 0) {
-          tests.push(responseAssignedToIssue.data);
+          responseAssignedToIssue.data.groups.forEach((group) => {
+            if (group.issueId === selectedIssue.id) {
+              tests.push(responseAssignedToIssue.data);
+            }
+          });
         }
       }
 
@@ -175,6 +184,7 @@ export default function Home() {
           secondIndx++
         ) {
           const testId = test?.groups[secondIndx]?.clashTestId;
+          clashIDs = test?.groups[secondIndx]?.clashes;
           const responseClashResources = await axios.get(
             "https://developer.api.autodesk.com/bim360/clash/v3/containers/" +
               containerID +
@@ -190,16 +200,24 @@ export default function Home() {
           testResources.push(responseClashResources.data);
         }
       }
-      console.log("SSSSSS Response:", testResources);
-
-      const url = testResources[0].resources.find((url) =>
-        url.type.includes("instance")
-      ).url; // TODO: only first test is considered
-      const response = await fetch(
-        "https://cors-anywhere.herokuapp.com/" + url // TODO: Proxy is used to bypass CORS
-      );
-      const jsonResponse = await response.json();
-      console.log("JSON Response:", jsonResponse);
+      const resources = await fetchResources(testResources, clashIDs);
+      console.log("Resources:", resources);
+      let modelIDs = [];
+      resources.instance.forEach((instance) => {
+        if (
+          !modelIDs.includes(instance.ldid) ||
+          !modelIDs.includes(instance.rdid)
+        ) {
+          modelIDs.push(instance.ldid);
+          modelIDs.push(instance.rdid);
+        }
+      });
+      loadModels({
+        docs: resources.document.documents.filter((doc) => {
+          return modelIDs.includes(doc.id);
+        }),
+        instances: resources.instance,
+      });
     } catch (error) {
       console.error(
         "Error fetching modelsets:",
@@ -211,8 +229,36 @@ export default function Home() {
     }
   };
 
-  const dev = async () => {
-    console.log("DEV");
+  const fetchResources = async (testResources, includedIDs) => {
+    const urlOfInstance = testResources[0].resources.find((url) =>
+      url.type.includes("instance")
+    ).url; // TODO: only first test is considered
+    const response = await fetch(
+      urlOfInstance // TODO: Proxy is used to bypass CORS
+    );
+    const jsonResponseOfInstance = await response.json();
+
+    const filteredInstances = jsonResponseOfInstance?.["instances"].filter(
+      (instance) => {
+        return includedIDs.includes(instance.cid);
+      }
+    );
+    console.log("Filtered Instances:", filteredInstances);
+    const urlOfDocument = testResources[0].resources.find((url) =>
+      url.type.includes("document")
+    ).url; // TODO: only first test is considered
+    const responseDocument = await fetch(
+      urlOfDocument // TODO: Proxy is used to bypass CORS
+    );
+    const jsonResponseOfDocument = await responseDocument.json();
+
+    return {
+      instance: filteredInstances,
+      document: jsonResponseOfDocument,
+    };
+  };
+
+  const loadModels = async (docsObject) => {
     const options = {
       env: "AutodeskProduction2",
       api: "derivativeV2",
@@ -223,56 +269,60 @@ export default function Home() {
       accessToken: token,
       language: "en",
     };
-    Autodesk.Viewing.Initializer(options, () => {
-      const viewer = new Autodesk.Viewing.AggregatedView();
-      const htmlDiv = document.getElementById("viewerDiv");
-
-      viewer.init(htmlDiv, options).then(function () {
+    try {
+      const { docs, instances } = docsObject;
+      console.log("Docs:", docs);
+      Autodesk.Viewing.Initializer(options, () => {
+        const viewer = new Autodesk.Viewing.AggregatedView();
+        const htmlDiv = document.getElementById("viewerDiv");
         let bubbleNodes = [];
-        let docs = [];
 
-        Autodesk.Viewing.Document.load(
-          "urn:" +
-            btoa(
-              "urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"
-            ),
-          (doc) => {
-            // Set the nodes from the doc
-            var nodes = doc.getRoot().search({ type: "geometry" });
-            // Load the first bubble node. This assumes that a bubbleNode was successfully found
-            // viewer.setNodes(nodes[0]); // is used for single model load
-            bubbleNodes.push(nodes[0]);
-            docs.push(doc);
-          },
-          (errorCode, errorMsg, messages) => {
-            // Do something with the failed document.
-            // ...
-          }
-        );
-        Autodesk.Viewing.Document.load(
-          "urn:" +
-            btoa(
-              "urn:adsk.wipprod:fs.file:vf.zUX5uMTtS26OOsQ6kI1Jbw?version=1"
-            ),
-          (doc) => {
-            // Set the nodes from the doc
-            var nodes = doc.getRoot().search({ type: "geometry" });
-            // Load the first bubble node. This assumes that a bubbleNode was successfully found
-            bubbleNodes.push(nodes[0]);
-            docs.push(doc);
+        viewer.init(htmlDiv, {}).then(function () {
+          Promise.all(
+            docs.map((doc) => {
+              return new Promise((resolve, reject) => {
+                Autodesk.Viewing.Document.load(
+                  "urn:" + btoa(doc.urn),
+                  (doc) => {
+                    // Set the nodes from the doc
+                    var nodes = doc.getRoot().search({ type: "geometry" });
+                    // Load the first bubble node. This assumes that a bubbleNode was successfully found
+                    //viewer.setNodes(nodes[0]); // is used for single model load
+                    bubbleNodes.push(nodes[0]);
+                    resolve();
+                  },
+                  (errorCode, errorMsg, messages) => {
+                    // Do something with the failed document.
+                    // ...
+                    reject();
+                  }
+                );
+              });
+            })
+          ).then(() => {
             viewer.setNodes(bubbleNodes);
-          },
-          (errorCode, errorMsg, messages) => {
-            // Do something with the failed document.
-            // ...
-          }
-        );
-        console.log("BubbleNodes:", bubbleNodes);
-        // viewer.setNodes(bubbleNodes[0]);
-      });
-      console.log("Initialized");
-    });
 
+            viewer.viewer.addEventListener(
+              Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
+              (event) => {
+                //console.log(event.selections);
+                console.log(viewer.viewer.getAggregateSelection());
+              }
+            );
+            viewer.viewer.addEventListener(
+              Autodesk.Viewing.EXPLODE_CHANGE_EVENT,
+              (event) => {
+                viewer.viewer.select(6261);
+              }
+            );
+          });
+        });
+      });
+    } catch (error) {
+      console.error("Error loading models:", error);
+    }
+  };
+  const dev = async () => {
     // Autodesk.Viewing.Document.load(
     //   "urn:" +
     //     btoa("urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"),
@@ -280,9 +330,7 @@ export default function Home() {
     //     const viewables = doc.getRoot().getDefaultGeometry();
     //     const viewerDiv = document.getElementById("viewerDiv");
     //     //const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
-
     //     const startedCode = viewer.start();
-
     //     viewer.loadDocumentNode(doc, viewables).then((i) => {
     //       console.log("Document asdasd");
     //       i.getObjectTree((tree) => {
@@ -293,7 +341,6 @@ export default function Home() {
     //             console.log("Node Name:", nodeName);
     //           };
     //       });
-
     //       viewer.addEventListener(
     //         Autodesk.Viewing.SELECTION_CHANGED_EVENT,
     //         () => {
@@ -304,7 +351,6 @@ export default function Home() {
     //   },
     //   (code, message, errors) => console.error(code, message, errors)
     // );
-
     // try {
     //   const encodedUrn = btoa(
     //     "urn:adsk.wipprod:fs.file:vf.zUX5uMTtS26OOsQ6kI1Jbw?version=1"
@@ -313,7 +359,6 @@ export default function Home() {
     //     "https://developer.api.autodesk.com/modelderivative/v2/designdata/" +
     //       encodedUrn +
     //       "/metadata",
-
     //     {
     //       headers: {
     //         Authorization: "Bearer " + token,
@@ -331,7 +376,6 @@ export default function Home() {
     //   }
     // }
   };
-  const dev2 = async () => {};
 
   const onClickIssue = async (issue) => {
     console.log("Issue clicked:", issue);
@@ -344,10 +388,10 @@ export default function Home() {
     <div className={styles.page}>
       <div
         style={{
-          width: "50%",
-          height: "50%",
+          width: "50% important!",
+          height: "50% important!",
           border: "1px solid black",
-          top: 5,
+          bottom: 5,
           position: "absolute",
         }}
         id="viewerDiv"
@@ -359,38 +403,6 @@ export default function Home() {
           top: "51%",
         }}
       >
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => dev()}
-          sx={{
-            width: 200,
-            backgroundColor: "black",
-            color: "white",
-            borderRadius: 10,
-            fontWeight: "bold",
-            fontSize: 12,
-            borderColor: "black",
-          }}
-        >
-          DEV
-        </Button>
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => dev2()}
-          sx={{
-            width: 200,
-            backgroundColor: "black",
-            color: "white",
-            borderRadius: 10,
-            fontWeight: "bold",
-            fontSize: 12,
-            borderColor: "black",
-          }}
-        >
-          GET SELECTİON
-        </Button>
         <Image
           className={styles.logo}
           src="/SU-YAPI LOGO_primary_eng.png"
@@ -425,8 +437,9 @@ export default function Home() {
             />
             Grant access to your data!
           </a>
-
-          {token && (
+          {loading && !token ? (
+            <div style={{ fontSize: 14, margin: "auto" }}>Loading...</div>
+          ) : (
             <div>
               <Button
                 variant="outlined"
@@ -459,7 +472,6 @@ export default function Home() {
                 gap: 20,
               }}
             >
-              <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
               <div
                 style={{
                   display: "flex",
@@ -502,6 +514,7 @@ export default function Home() {
                   </Button>
                 )}
               </div>
+              <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
             </div>
             {/* <Viewer
               runtime={{ accessToken: token }}
@@ -512,8 +525,64 @@ export default function Home() {
                 setCamera(camera.getWorldPosition());
               }}
             ></Viewer> */}
+            {persistentProjectName && issues.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "start",
+                  justifyContent: "space-around",
+                  gap: 20,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      minWidth: 400,
+                      minHeight: 50,
+                      border: "1px solid",
+                      padding: 8,
+                      fontSize: 16,
+                      borderRadius: 5,
+                      backgroundColor: "lightgray",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    Selected Issue: {selectedIssue?.displayId} for Project:{" "}
+                    {persistentProjectName}
+                  </div>
 
-            {issues.length > 0 && DenseIssueTable(issues, onClickIssue)}
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={() =>
+                      getClashedElementInfo(selectedIssue?.containerId)
+                    }
+                    sx={{
+                      width: 200,
+                      backgroundColor: "black",
+                      color: "white",
+                      borderRadius: 10,
+                      fontWeight: "bold",
+                      fontSize: 12,
+                      borderColor: "black",
+                    }}
+                  >
+                    Show Models
+                  </Button>
+                </div>
+                {DenseIssueTable(issues, onClickIssue)}
+              </div>
+            )}
+
             <div
               style={{
                 fontWeight: "bold",
@@ -530,24 +599,6 @@ export default function Home() {
             >
               Selected Issue: {selectedIssue?.displayId}
             </div>
-            {selectedIssue && (
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => getClashedElementCsv(selectedIssue?.containerId)}
-                sx={{
-                  width: 200,
-                  backgroundColor: "black",
-                  color: "white",
-                  borderRadius: 10,
-                  fontWeight: "bold",
-                  fontSize: 12,
-                  borderColor: "black",
-                }}
-              >
-                Download Clashed Elements CSV
-              </Button>
-            )}
           </div>
         )}
       </div>
