@@ -195,8 +195,11 @@ export default function Home() {
       const url = testResources[0].resources.find((url) =>
         url.type.includes("instance")
       ).url; // TODO: only first test is considered
-      const response = await fetch(url);
+      const response = await fetch(
+        "https://cors-anywhere.herokuapp.com/" + url // TODO: Proxy is used to bypass CORS
+      );
       const jsonResponse = await response.json();
+      console.log("JSON Response:", jsonResponse);
     } catch (error) {
       console.error(
         "Error fetching modelsets:",
@@ -210,52 +213,97 @@ export default function Home() {
 
   const dev = async () => {
     console.log("DEV");
-    Autodesk.Viewing.Initializer(
-      {
-        env: "AutodeskProduction2",
-        api: "derivativeV2",
-        getAccessToken: function (onTokenReady) {
-          var timeInSeconds = 3600; // Use value provided by APS Authentication (OAuth) API
-          onTokenReady(token, timeInSeconds);
-        },
-        accessToken: token,
-        language: "en",
+    const options = {
+      env: "AutodeskProduction2",
+      api: "derivativeV2",
+      getAccessToken: function (onTokenReady) {
+        var timeInSeconds = 3600; // Use value provided by APS Authentication (OAuth) API
+        onTokenReady(token, timeInSeconds);
       },
-      () => {
-        console.log("Initialized");
-      }
-    );
-    Autodesk.Viewing.Document.load(
-      "urn:" +
-        btoa("urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"),
-      (doc) => {
-        const viewables = doc.getRoot().getDefaultGeometry();
-        const viewerDiv = document.getElementById("viewerDiv");
-        const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
+      accessToken: token,
+      language: "en",
+    };
+    Autodesk.Viewing.Initializer(options, () => {
+      const viewer = new Autodesk.Viewing.AggregatedView();
+      const htmlDiv = document.getElementById("viewerDiv");
 
-        const startedCode = viewer.start();
+      viewer.init(htmlDiv, options).then(function () {
+        let bubbleNodes = [];
+        let docs = [];
 
-        viewer.loadDocumentNode(doc, viewables).then((i) => {
-          console.log("Document asdasd");
-          i.getObjectTree((tree) => {
-            console.log("Tree:", tree.getNodeName(27551));
-            tree.enumNodeFragments(tree.getRootId()),
-              (fragId) => {
-                const nodeName = tree.getNodeName(fragId);
-                console.log("Node Name:", nodeName);
-              };
-          });
+        Autodesk.Viewing.Document.load(
+          "urn:" +
+            btoa(
+              "urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"
+            ),
+          (doc) => {
+            // Set the nodes from the doc
+            var nodes = doc.getRoot().search({ type: "geometry" });
+            // Load the first bubble node. This assumes that a bubbleNode was successfully found
+            // viewer.setNodes(nodes[0]); // is used for single model load
+            bubbleNodes.push(nodes[0]);
+            docs.push(doc);
+          },
+          (errorCode, errorMsg, messages) => {
+            // Do something with the failed document.
+            // ...
+          }
+        );
+        Autodesk.Viewing.Document.load(
+          "urn:" +
+            btoa(
+              "urn:adsk.wipprod:fs.file:vf.zUX5uMTtS26OOsQ6kI1Jbw?version=1"
+            ),
+          (doc) => {
+            // Set the nodes from the doc
+            var nodes = doc.getRoot().search({ type: "geometry" });
+            // Load the first bubble node. This assumes that a bubbleNode was successfully found
+            bubbleNodes.push(nodes[0]);
+            docs.push(doc);
+            viewer.setNodes(bubbleNodes);
+          },
+          (errorCode, errorMsg, messages) => {
+            // Do something with the failed document.
+            // ...
+          }
+        );
+        console.log("BubbleNodes:", bubbleNodes);
+        // viewer.setNodes(bubbleNodes[0]);
+      });
+      console.log("Initialized");
+    });
 
-          viewer.addEventListener(
-            Autodesk.Viewing.SELECTION_CHANGED_EVENT,
-            () => {
-              console.log(viewer.getSelection());
-            }
-          );
-        });
-      },
-      (code, message, errors) => console.error(code, message, errors)
-    );
+    // Autodesk.Viewing.Document.load(
+    //   "urn:" +
+    //     btoa("urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"),
+    //   (doc) => {
+    //     const viewables = doc.getRoot().getDefaultGeometry();
+    //     const viewerDiv = document.getElementById("viewerDiv");
+    //     //const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
+
+    //     const startedCode = viewer.start();
+
+    //     viewer.loadDocumentNode(doc, viewables).then((i) => {
+    //       console.log("Document asdasd");
+    //       i.getObjectTree((tree) => {
+    //         console.log("Tree:", tree.getNodeName(27551));
+    //         tree.enumNodeFragments(tree.getRootId()),
+    //           (fragId) => {
+    //             const nodeName = tree.getNodeName(fragId);
+    //             console.log("Node Name:", nodeName);
+    //           };
+    //       });
+
+    //       viewer.addEventListener(
+    //         Autodesk.Viewing.SELECTION_CHANGED_EVENT,
+    //         () => {
+    //           console.log(viewer.getSelection());
+    //         }
+    //       );
+    //     });
+    //   },
+    //   (code, message, errors) => console.error(code, message, errors)
+    // );
 
     // try {
     //   const encodedUrn = btoa(
