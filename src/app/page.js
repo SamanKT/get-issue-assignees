@@ -3,7 +3,7 @@ import Image from "next/image";
 import styles from "./page.module.css";
 import axios from "axios";
 import { useEffect, useState, useRef } from "react";
-import { Button } from "@mui/material";
+import { Button, Modal } from "@mui/material";
 import DenseIssueTable from "../../DenseIssueTable";
 import ProjectsTable from "../../ProjectsTable";
 import pako from "pako";
@@ -19,6 +19,7 @@ export default function Home() {
   const grantAccessLinkRef = useRef(null);
   const [persistentProjectName, setPersistentProjectName] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
 
   useEffect(() => {
     fetchToken();
@@ -29,9 +30,11 @@ export default function Home() {
     return btoa(credentials); // Encodes the string to Base64
   };
   const fetchToken = async () => {
-    setLoading(true);
     const queryParams = new URLSearchParams(window.location.search);
     const code = queryParams.get("code");
+    if (!code) return;
+    setLoading(true);
+
     console.log(code);
     try {
       const response = await axios.post(
@@ -49,7 +52,6 @@ export default function Home() {
           },
         }
       );
-      console.log("Fetching token finished 100" + loading);
       console.log("Token Response:", response.data);
       const responseAccount = await axios.get(
         "https://developer.api.autodesk.com/project/v1/hubs",
@@ -212,6 +214,7 @@ export default function Home() {
           modelIDs.push(instance.rdid);
         }
       });
+      setOpenModal(true);
       loadModels({
         docs: resources.document.documents.filter((doc) => {
           return modelIDs.includes(doc.id);
@@ -234,7 +237,7 @@ export default function Home() {
       url.type.includes("instance")
     ).url; // TODO: only first test is considered
     const response = await fetch(
-      urlOfInstance // TODO: Proxy is used to bypass CORS
+      "https://cors-anywhere.herokuapp.com/" + urlOfInstance // TODO: Proxy is used to bypass CORS
     );
     const jsonResponseOfInstance = await response.json();
 
@@ -248,7 +251,7 @@ export default function Home() {
       url.type.includes("document")
     ).url; // TODO: only first test is considered
     const responseDocument = await fetch(
-      urlOfDocument // TODO: Proxy is used to bypass CORS
+      "https://cors-anywhere.herokuapp.com/" + urlOfDocument // TODO: Proxy is used to bypass CORS
     );
     const jsonResponseOfDocument = await responseDocument.json();
 
@@ -322,60 +325,6 @@ export default function Home() {
       console.error("Error loading models:", error);
     }
   };
-  const dev = async () => {
-    // Autodesk.Viewing.Document.load(
-    //   "urn:" +
-    //     btoa("urn:adsk.wipprod:fs.file:vf.ZpxjcUz_Tq6h4lXLGbsBEA?version=2"),
-    //   (doc) => {
-    //     const viewables = doc.getRoot().getDefaultGeometry();
-    //     const viewerDiv = document.getElementById("viewerDiv");
-    //     //const viewer = new Autodesk.Viewing.GuiViewer3D(viewerDiv);
-    //     const startedCode = viewer.start();
-    //     viewer.loadDocumentNode(doc, viewables).then((i) => {
-    //       console.log("Document asdasd");
-    //       i.getObjectTree((tree) => {
-    //         console.log("Tree:", tree.getNodeName(27551));
-    //         tree.enumNodeFragments(tree.getRootId()),
-    //           (fragId) => {
-    //             const nodeName = tree.getNodeName(fragId);
-    //             console.log("Node Name:", nodeName);
-    //           };
-    //       });
-    //       viewer.addEventListener(
-    //         Autodesk.Viewing.SELECTION_CHANGED_EVENT,
-    //         () => {
-    //           console.log(viewer.getSelection());
-    //         }
-    //       );
-    //     });
-    //   },
-    //   (code, message, errors) => console.error(code, message, errors)
-    // );
-    // try {
-    //   const encodedUrn = btoa(
-    //     "urn:adsk.wipprod:fs.file:vf.zUX5uMTtS26OOsQ6kI1Jbw?version=1"
-    //   );
-    //   const response = await axios.get(
-    //     "https://developer.api.autodesk.com/modelderivative/v2/designdata/" +
-    //       encodedUrn +
-    //       "/metadata",
-    //     {
-    //       headers: {
-    //         Authorization: "Bearer " + token,
-    //       },
-    //     }
-    //   );
-    //   console.log("DEV:", response.data);
-    // } catch (error) {
-    //   console.error(
-    //     "Error fetching issues:",
-    //     error.response ? error.response.data : error.message
-    //   );
-    //   if (error?.response.data?.errorCode === "AUTH-006") {
-    //     grantAccessLinkRef.current.click();
-    //   }
-    // }
-  };
 
   const onClickIssue = async (issue) => {
     console.log("Issue clicked:", issue);
@@ -385,21 +334,18 @@ export default function Home() {
     setSelectedProject(project);
   };
   return (
-    <div className={styles.page}>
-      <div
-        style={{
-          width: "50% important!",
-          height: "50% important!",
-          border: "1px solid black",
-          bottom: 5,
-          position: "absolute",
-        }}
-        id="viewerDiv"
-      ></div>
+    <div
+      className={styles.page}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <div
         className={styles.main}
         style={{
-          position: "absolute",
           top: "51%",
         }}
       >
@@ -437,27 +383,40 @@ export default function Home() {
             />
             Grant access to your data!
           </a>
-          {loading && !token ? (
-            <div style={{ fontSize: 14, margin: "auto" }}>Loading...</div>
-          ) : (
-            <div>
-              <Button
-                variant="outlined"
-                onClick={getProjects}
-                sx={{
-                  width: 200,
-                  height: 45,
-                  backgroundColor: "gray",
-                  color: "white",
-                  borderRadius: 10,
-                  fontWeight: "bold",
-                  fontSize: 12,
-                  borderColor: "black",
-                }}
-              >
-                Get Projects
-              </Button>
+          {loading ? (
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 5,
+              }}
+            >
+              Loading...
             </div>
+          ) : (
+            token && (
+              <div>
+                <Button
+                  variant="outlined"
+                  onClick={getProjects}
+                  sx={{
+                    width: 200,
+                    height: 45,
+                    backgroundColor: "gray",
+                    color: "white",
+                    borderRadius: 10,
+                    fontWeight: "bold",
+                    fontSize: 12,
+                    borderColor: "black",
+                  }}
+                >
+                  Get Projects
+                </Button>
+              </div>
+            )
           )}
         </div>
 
@@ -516,15 +475,7 @@ export default function Home() {
               </div>
               <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
             </div>
-            {/* <Viewer
-              runtime={{ accessToken: token }}
-              urn={btoa(
-                "urn:adsk.wipprod:fs.file:vf.zUX5uMTtS26OOsQ6kI1Jbw?version=1"
-              )}
-              onCameraChange={({ viewer, camera }) => {
-                setCamera(camera.getWorldPosition());
-              }}
-            ></Viewer> */}
+
             {persistentProjectName && issues.length > 0 && (
               <div
                 style={{
@@ -533,6 +484,7 @@ export default function Home() {
                   alignItems: "start",
                   justifyContent: "space-around",
                   gap: 20,
+                  marginBottom: 50,
                 }}
               >
                 <div
@@ -556,49 +508,36 @@ export default function Home() {
                       alignItems: "center",
                     }}
                   >
-                    Selected Issue: {selectedIssue?.displayId} for Project:{" "}
-                    {persistentProjectName}
+                    Selected Issue:{" "}
+                    {selectedIssue?.displayId
+                      ? selectedIssue?.displayId
+                      : "---"}{" "}
+                    for Project: {persistentProjectName}
                   </div>
-
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    onClick={() =>
-                      getClashedElementInfo(selectedIssue?.containerId)
-                    }
-                    sx={{
-                      width: 200,
-                      backgroundColor: "black",
-                      color: "white",
-                      borderRadius: 10,
-                      fontWeight: "bold",
-                      fontSize: 12,
-                      borderColor: "black",
-                    }}
-                  >
-                    Show Models
-                  </Button>
+                  {selectedIssue && (
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() =>
+                        getClashedElementInfo(selectedIssue?.containerId)
+                      }
+                      sx={{
+                        width: 200,
+                        backgroundColor: "black",
+                        color: "white",
+                        borderRadius: 10,
+                        fontWeight: "bold",
+                        fontSize: 12,
+                        borderColor: "black",
+                      }}
+                    >
+                      Show Models
+                    </Button>
+                  )}
                 </div>
                 {DenseIssueTable(issues, onClickIssue)}
               </div>
             )}
-
-            <div
-              style={{
-                fontWeight: "bold",
-                minWidth: 400,
-                minHeight: 50,
-                border: "1px solid",
-                padding: 8,
-                fontSize: 16,
-                borderRadius: 5,
-                backgroundColor: "lightgray",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              Selected Issue: {selectedIssue?.displayId}
-            </div>
           </div>
         )}
       </div>
@@ -631,7 +570,55 @@ export default function Home() {
           />
           Go to suyapi.com.tr →
         </a>
+        <a
+          href="https://www.linkedin.com/in/saman-khataei-ph-d-1334b5b6/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/window.svg"
+            alt="Window icon"
+            width={16}
+            height={16}
+          />
+          Developed by: Saman Khataei →
+        </a>
       </div>
+      <Modal onClose={() => setOpenModal(false)} open={openModal}>
+        <div
+          style={{
+            width: "50%",
+            height: "50%",
+            margin: "auto",
+            position: "absolute",
+            left: "25%",
+            top: "25%",
+          }}
+          id="viewerDiv"
+        >
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => setOpenModal(false)}
+            sx={{
+              width: 200,
+              backgroundColor: "black",
+              color: "white",
+              borderRadius: 10,
+              fontWeight: "bold",
+              fontSize: 12,
+              borderColor: "black",
+              position: "absolute",
+              zIndex: 100,
+              top: 3,
+              left: 3,
+            }}
+          >
+            Download Csv
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
