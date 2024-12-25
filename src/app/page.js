@@ -20,6 +20,9 @@ export default function Home() {
   const [persistentProjectName, setPersistentProjectName] = useState(null);
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+  const [uniqueViewIDsRightState, setUniqueViewIDsRightState] = useState(null);
+  const [uniqueViewIDsLeftState, setUniqueViewIDsLeftState] = useState(null);
+  const [aggregatedView, setAggregatedView] = useState(null);
 
   useEffect(() => {
     fetchToken();
@@ -147,74 +150,43 @@ export default function Home() {
       const modelsSets = responseModelSets.data.modelSets.filter(
         (element) => element.isDisabled === false
       );
-      console.log("Modelsets Response:", modelsSets);
 
-      let tests = [];
       let clashIDs = [];
-      for (let index = 0; index < modelsSets.length; index++) {
-        const modelSet = modelsSets[index];
-        const responseAssignedToIssue = await axios.get(
-          "https://developer.api.autodesk.com/bim360/clash/v3/containers/" +
-            containerID +
-            "/modelsets/" +
-            modelSet.modelSetId +
-            "/clashes/assigned?issueId=" +
-            selectedIssue.id,
 
-          {
-            headers: {
-              Authorization: "Bearer " + token,
-            },
-          }
-        );
-
-        if (responseAssignedToIssue.data.groups.length > 0) {
-          responseAssignedToIssue.data.groups.forEach((group) => {
-            if (group.issueId === selectedIssue.id) {
-              tests.push(responseAssignedToIssue.data);
-            }
-          });
-        }
-      }
+      const tests = await fetchAssignedResources(containerID, modelsSets, null);
 
       let testResources = [];
-      for (let index = 0; index < tests.length; index++) {
-        const test = tests[index];
-        for (
-          let secondIndx = 0;
-          secondIndx < test.groups.length;
-          secondIndx++
-        ) {
-          const testId = test?.groups[secondIndx]?.clashTestId;
-          clashIDs = test?.groups[secondIndx]?.clashes;
-          const responseClashResources = await axios.get(
-            "https://developer.api.autodesk.com/bim360/clash/v3/containers/" +
-              containerID +
-              "/tests/" +
-              testId +
-              "/resources",
-            {
-              headers: {
-                Authorization: "Bearer " + token,
-              },
-            }
-          );
-          testResources.push(responseClashResources.data);
+      const testGroupAccordingToIssueId = tests[0].groups.filter((group) => {
+        return group.issueId === selectedIssue.id;
+      })[0];
+
+      clashIDs = testGroupAccordingToIssueId.clashes;
+      const responseClashResources = await axios.get(
+        "https://developer.api.autodesk.com/bim360/clash/v3/containers/" +
+          containerID +
+          "/tests/" +
+          testGroupAccordingToIssueId.clashTestId +
+          "/resources",
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+          },
         }
-      }
+      );
+      testResources.push(responseClashResources.data);
+
       const resources = await fetchResources(testResources, clashIDs);
       console.log("Resources:", resources);
       let modelIDs = [];
       resources.instance.forEach((instance) => {
-        if (
-          !modelIDs.includes(instance.ldid) ||
-          !modelIDs.includes(instance.rdid)
-        ) {
+        if (!modelIDs.includes(instance.ldid)) {
           modelIDs.push(instance.ldid);
+        }
+        if (!modelIDs.includes(instance.rdid)) {
           modelIDs.push(instance.rdid);
         }
       });
-      setOpenModal(true);
+
       loadModels({
         docs: resources.document.documents.filter((doc) => {
           return modelIDs.includes(doc.id);
@@ -231,13 +203,62 @@ export default function Home() {
       }
     }
   };
+  const fetchAssignedResources = async (
+    containerID,
+    modelsSets,
+    continuationToken
+  ) => {
+    let tests = [];
 
+    for (let index = 0; index < modelsSets.length; index++) {
+      const modelSet = modelsSets[index];
+      const responseAssignedToIssue = await axios.get(
+        `https://developer.api.autodesk.com/bim360/clash/v3/containers/${containerID}/modelsets/${modelSet.modelSetId}/clashes/assigned?sort=Desc&continuationToken=${continuationToken}&issueId=${selectedIssue.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log("responseAssignedToIssue:", responseAssignedToIssue);
+
+      if (responseAssignedToIssue.data.groups.length === 0) {
+        alert("No clash test assigned to you by this issue");
+        throw new Error("No clash test assigned");
+      }
+
+      responseAssignedToIssue.data.groups.forEach((group) => {
+        if (group.issueId === selectedIssue.id) {
+          tests.push(responseAssignedToIssue.data);
+        }
+      });
+
+      if (
+        tests.length === 0 &&
+        responseAssignedToIssue.data.page["continuationToken"]
+      ) {
+        const recursiveTests = await fetchAssignedResources(
+          containerID,
+          modelsSets,
+          responseAssignedToIssue.data.page["continuationToken"]
+        );
+        tests = tests.concat(recursiveTests);
+      }
+    }
+
+    if (tests.length === 0) {
+      alert("No clash test assigned to you by this issue");
+      throw new Error("No clash test assigned");
+    }
+
+    return tests;
+  };
   const fetchResources = async (testResources, includedIDs) => {
     const urlOfInstance = testResources[0].resources.find((url) =>
       url.type.includes("instance")
     ).url; // TODO: only first test is considered
     const response = await fetch(
-      "https://cors-anywhere.herokuapp.com/" + urlOfInstance // TODO: Proxy is used to bypass CORS
+      urlOfInstance // TODO: Proxy is used to bypass CORS
     );
     const jsonResponseOfInstance = await response.json();
 
@@ -251,7 +272,7 @@ export default function Home() {
       url.type.includes("document")
     ).url; // TODO: only first test is considered
     const responseDocument = await fetch(
-      "https://cors-anywhere.herokuapp.com/" + urlOfDocument // TODO: Proxy is used to bypass CORS
+      urlOfDocument // TODO: Proxy is used to bypass CORS
     );
     const jsonResponseOfDocument = await responseDocument.json();
 
@@ -274,7 +295,27 @@ export default function Home() {
     };
     try {
       const { docs, instances } = docsObject;
-      console.log("Docs:", docs);
+      const leftModel = docs.find((model) => model.id === instances[0].ldid);
+      const rightModel = docs.find((model) => model.id === instances[0].rdid);
+      let uniqueViewIDsForLeft = { [leftModel.id]: [] };
+      let uniqueViewIDsForRight = { [rightModel.id]: [] };
+
+      instances.forEach((instance) => {
+        if (!uniqueViewIDsForLeft[[leftModel.id]].includes(instance.lvid)) {
+          uniqueViewIDsForLeft[[leftModel.id]] = [
+            ...uniqueViewIDsForLeft[[leftModel.id]],
+            instance.lvid,
+          ];
+        }
+
+        if (!uniqueViewIDsForRight[[rightModel.id]].includes(instance.rvid)) {
+          uniqueViewIDsForRight[[rightModel.id]] = [
+            ...uniqueViewIDsForRight[[rightModel.id]],
+            instance.rvid,
+          ];
+        }
+      });
+      setOpenModal(true);
       Autodesk.Viewing.Initializer(options, () => {
         const viewer = new Autodesk.Viewing.AggregatedView();
         const htmlDiv = document.getElementById("viewerDiv");
@@ -282,10 +323,11 @@ export default function Home() {
 
         viewer.init(htmlDiv, {}).then(function () {
           Promise.all(
-            docs.map((doc) => {
+            [leftModel, rightModel].map((model) => {
+              const encodedUrn = btoa(model.urn);
               return new Promise((resolve, reject) => {
                 Autodesk.Viewing.Document.load(
-                  "urn:" + btoa(doc.urn),
+                  "urn:" + encodedUrn,
                   (doc) => {
                     // Set the nodes from the doc
                     var nodes = doc.getRoot().search({ type: "geometry" });
@@ -303,19 +345,83 @@ export default function Home() {
               });
             })
           ).then(() => {
+            console.log("Unique View IDs Right:", uniqueViewIDsForRight);
+
+            setUniqueViewIDsRightState(uniqueViewIDsForRight);
+            setUniqueViewIDsLeftState(uniqueViewIDsForLeft);
+            setAggregatedView(viewer.viewer);
             viewer.setNodes(bubbleNodes);
 
             viewer.viewer.addEventListener(
-              Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT,
+              Autodesk.Viewing.GEOMETRY_LOADED_EVENT,
               (event) => {
-                //console.log(event.selections);
-                console.log(viewer.viewer.getAggregateSelection());
-              }
-            );
-            viewer.viewer.addEventListener(
-              Autodesk.Viewing.EXPLODE_CHANGE_EVENT,
-              (event) => {
-                viewer.viewer.select(6261);
+                let leftModelElementIDs = [];
+                let rightModelElementIDs = [];
+                const leftLoadedModel = viewer.viewer
+                  .getAllModels()
+                  .find(
+                    (model) =>
+                      Buffer.from(model.getData().urn, "base64").toString(
+                        "ascii"
+                      ) === leftModel.urn
+                  );
+                const rightLoadedModel = viewer.viewer
+                  .getAllModels()
+                  .find(
+                    (model) =>
+                      Buffer.from(model.getData().urn, "base64").toString(
+                        "ascii"
+                      ) === rightModel.urn
+                  );
+
+                uniqueViewIDsForLeft[leftModel.id].forEach((viewID) => {
+                  leftLoadedModel.getBulkProperties([viewID], {}, (result) => {
+                    leftModelElementIDs.push(
+                      result[0].properties.find(
+                        (prop) => prop.displayName === "ElementId"
+                      )?.displayValue
+                    );
+                  });
+                });
+
+                uniqueViewIDsForRight[rightModel.id].forEach((viewID) => {
+                  rightLoadedModel.getBulkProperties([viewID], {}, (result) => {
+                    rightModelElementIDs.push(
+                      result[0].properties.find(
+                        (prop) => prop.displayName === "ElementId"
+                      )?.displayValue
+                    );
+                  });
+                });
+
+                console.log("Left Model Element IDs:", leftModelElementIDs);
+                console.log("Right Model Element IDs:", rightModelElementIDs);
+
+                viewer.viewer.clearSelection();
+                viewer.viewer.setAggregateSelection([
+                  {
+                    model: viewer.viewer
+                      .getAllModels()
+                      .find(
+                        (model) =>
+                          Buffer.from(model.getData().urn, "base64").toString(
+                            "ascii"
+                          ) === leftModel.urn
+                      ),
+                    ids: uniqueViewIDsForLeft[leftModel.id],
+                  },
+                  {
+                    model: viewer.viewer
+                      .getAllModels()
+                      .find(
+                        (model) =>
+                          Buffer.from(model.getData().urn, "base64").toString(
+                            "ascii"
+                          ) === rightModel.urn
+                      ),
+                    ids: uniqueViewIDsForRight[rightModel.id],
+                  },
+                ]);
               }
             );
           });
@@ -370,7 +476,7 @@ export default function Home() {
         <div className={styles.ctas}>
           <a
             className={styles.primary}
-            href="https://developer.api.autodesk.com/authentication/v2/authorize?response_type=code&client_id=A6MyzsTNsRnVZKrpeFvunHTxSbA86kYJ9rnljOxjxnvB0KIl&redirect_uri=http://localhost:3000/&scope=data:read account:read data:write bucket:create bucket:delete"
+            href="https://developer.api.autodesk.com/authentication/v2/authorize?response_type=code&client_id=A6MyzsTNsRnVZKrpeFvunHTxSbA86kYJ9rnljOxjxnvB0KIl&redirect_uri=http://localhost:3000/&scope=data:read account:read data:write"
             rel="noopener noreferrer"
             ref={grantAccessLinkRef}
           >
@@ -531,7 +637,7 @@ export default function Home() {
                         borderColor: "black",
                       }}
                     >
-                      Show Models
+                      Show Clashes
                     </Button>
                   )}
                 </div>
@@ -582,7 +688,7 @@ export default function Home() {
             width={16}
             height={16}
           />
-          Developed by: Saman Khataei →
+          Developed by: Alp Erdem →
         </a>
       </div>
       <Modal onClose={() => setOpenModal(false)} open={openModal}>
@@ -600,7 +706,18 @@ export default function Home() {
           <Button
             variant="outlined"
             color="primary"
-            onClick={() => setOpenModal(false)}
+            onClick={() => {
+              console.log(
+                "Download CSV",
+                aggregatedView.getAggregateSelection()
+              );
+              // aggregatedView.setAggregateSelection([
+              //   {
+              //     model: aggregatedView.getAllModels()[0],
+              //     ids: [16258],
+              //   },
+              // ]);
+            }}
             sx={{
               width: 200,
               backgroundColor: "black",
