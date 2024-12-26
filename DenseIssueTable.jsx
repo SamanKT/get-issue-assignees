@@ -1,3 +1,4 @@
+"use client";
 import * as React from "react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -9,36 +10,67 @@ import Paper from "@mui/material/Paper";
 import { Typography } from "@mui/material";
 
 export default function DenseIssueTable(rows, onClick) {
-  const formatDate = (dateString) => {
-    const options = { year: "numeric", month: "long", day: "numeric" };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
+  // const formatDate = (dateString) => {
+  //   const options = { year: "numeric", month: "long", day: "numeric" };
+  //   return new Date(dateString).toLocaleDateString(undefined, options);
+  // };
+
   rows = rows.sort((a, b) => {
     return new Date(b.openedAt) - new Date(a.openedAt);
   });
   rows = rows.slice(0, 30);
   return (
-    <TableContainer component={Paper} sx={{ maxHeight: 440, maxWidth: 800 }}>
-      <Typography variant="h6" gutterBottom component="div">
+    <TableContainer
+      component={Paper}
+      sx={{ maxHeight: 440, maxWidth: 800 }}
+      suppressHydrationWarning
+    >
+      <Typography
+        variant="h6"
+        gutterBottom
+        component="div"
+        suppressHydrationWarning
+      >
         Recent Issues
       </Typography>
-      <Table sx={{ minWidth: 750 }} aria-label="a dense table">
+      <Table
+        sx={{ minWidth: 750 }}
+        aria-label="a dense table"
+        suppressHydrationWarning
+      >
         <TableHead>
           <TableRow
             sx={{
               background: "lightgray",
             }}
+            suppressHydrationWarning
           >
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
+            <TableCell
+              sx={{ fontWeight: "bold" }}
+              align="left"
+              suppressHydrationWarning
+            >
               ID
             </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
+            <TableCell
+              sx={{ fontWeight: "bold" }}
+              align="left"
+              suppressHydrationWarning
+            >
               Title
             </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
+            <TableCell
+              sx={{ fontWeight: "bold" }}
+              align="left"
+              suppressHydrationWarning
+            >
               Status
             </TableCell>
-            <TableCell sx={{ fontWeight: "bold" }} align="left">
+            <TableCell
+              sx={{ fontWeight: "bold" }}
+              align="left"
+              suppressHydrationWarning
+            >
               Description
             </TableCell>
           </TableRow>
@@ -55,13 +87,22 @@ export default function DenseIssueTable(rows, onClick) {
                   background: "lightblue",
                 },
               }}
+              suppressHydrationWarning
               onClick={() => onClick(row)}
             >
-              <TableCell align="left">{row.displayId}</TableCell>
-              <TableCell align="left">{row.title}</TableCell>
-              <TableCell align="left">{row.status}</TableCell>
+              <TableCell align="left" suppressHydrationWarning>
+                {row.displayId}
+              </TableCell>
+              <TableCell align="left" suppressHydrationWarning>
+                {row.title}
+              </TableCell>
+              <TableCell align="left" suppressHydrationWarning>
+                {row.status}
+              </TableCell>
 
-              <TableCell align="left">{row.description}</TableCell>
+              <TableCell align="left" suppressHydrationWarning>
+                {row.description}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

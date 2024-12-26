@@ -6,8 +6,8 @@ import { useEffect, useState, useRef } from "react";
 import { Button, Modal } from "@mui/material";
 import DenseIssueTable from "../../DenseIssueTable";
 import ProjectsTable from "../../ProjectsTable";
-import pako from "pako";
-import Viewer from "./Viewer";
+import jsonToCsvExport from "json-to-csv-export";
+import { convertToJsonFormat } from "./utilities";
 
 export default function Home() {
   const [token, setToken] = useState(null);
@@ -20,9 +20,11 @@ export default function Home() {
   const [persistentProjectName, setPersistentProjectName] = useState(null);
   const [loading, setLoading] = useState(false);
   const [openModal, setOpenModal] = useState(false);
-  const [uniqueViewIDsRightState, setUniqueViewIDsRightState] = useState(null);
-  const [uniqueViewIDsLeftState, setUniqueViewIDsLeftState] = useState(null);
   const [aggregatedView, setAggregatedView] = useState(null);
+  const [lefModelElementIDs, setLeftModelElementIDs] = useState([]);
+  const [rightModelElementIDs, setRightModelElementIDs] = useState([]);
+  const [leftModelName, setLeftModelName] = useState(null);
+  const [rightModelName, setRightModelName] = useState(null);
 
   useEffect(() => {
     fetchToken();
@@ -347,16 +349,12 @@ export default function Home() {
           ).then(() => {
             console.log("Unique View IDs Right:", uniqueViewIDsForRight);
 
-            setUniqueViewIDsRightState(uniqueViewIDsForRight);
-            setUniqueViewIDsLeftState(uniqueViewIDsForLeft);
             setAggregatedView(viewer.viewer);
             viewer.setNodes(bubbleNodes);
 
             viewer.viewer.addEventListener(
               Autodesk.Viewing.GEOMETRY_LOADED_EVENT,
               (event) => {
-                let leftModelElementIDs = [];
-                let rightModelElementIDs = [];
                 const leftLoadedModel = viewer.viewer
                   .getAllModels()
                   .find(
@@ -374,28 +372,57 @@ export default function Home() {
                       ) === rightModel.urn
                   );
 
+                setLeftModelName(
+                  viewer.viewer
+                    .getAllModels()
+                    .find(
+                      (model) =>
+                        Buffer.from(model.getData().urn, "base64").toString(
+                          "ascii"
+                        ) === leftModel.urn
+                    )
+                    .getData()
+                    .loadOptions.bubbleNode.getRootNode()
+                    .children[0].name()
+                );
+                setRightModelName(
+                  viewer.viewer
+                    .getAllModels()
+                    .find(
+                      (model) =>
+                        Buffer.from(model.getData().urn, "base64").toString(
+                          "ascii"
+                        ) === rightModel.urn
+                    )
+                    .getData()
+                    .loadOptions.bubbleNode.getRootNode()
+                    .children[0].name()
+                );
+
                 uniqueViewIDsForLeft[leftModel.id].forEach((viewID) => {
-                  leftLoadedModel.getBulkProperties([viewID], {}, (result) => {
-                    leftModelElementIDs.push(
-                      result[0].properties.find(
-                        (prop) => prop.displayName === "ElementId"
-                      )?.displayValue
-                    );
+                  leftLoadedModel.getBulkProperties2([viewID], {}, (result) => {
+                    const ID = result[0].properties.find(
+                      (prop) => prop.displayName === "ElementId"
+                    )?.displayValue;
+                    setLeftModelElementIDs((prev) => [...prev, ID]);
                   });
                 });
 
                 uniqueViewIDsForRight[rightModel.id].forEach((viewID) => {
-                  rightLoadedModel.getBulkProperties([viewID], {}, (result) => {
-                    rightModelElementIDs.push(
-                      result[0].properties.find(
+                  rightLoadedModel.getBulkProperties2(
+                    [viewID],
+                    {},
+                    (result) => {
+                      const ID = result[0].properties.find(
                         (prop) => prop.displayName === "ElementId"
-                      )?.displayValue
-                    );
-                  });
+                      )?.displayValue;
+                      setRightModelElementIDs((prev) => [...prev, ID]);
+                    }
+                  );
                 });
 
-                console.log("Left Model Element IDs:", leftModelElementIDs);
-                console.log("Right Model Element IDs:", rightModelElementIDs);
+                //console.log("Left Model Element IDs:", leftModelElementIDs);
+                // console.log("Right Model Element IDs:", rightModelElementIDs);
 
                 viewer.viewer.clearSelection();
                 viewer.viewer.setAggregateSelection([
@@ -448,12 +475,14 @@ export default function Home() {
         alignItems: "center",
         justifyContent: "center",
       }}
+      suppressHydrationWarning
     >
       <div
         className={styles.main}
         style={{
           top: "51%",
         }}
+        suppressHydrationWarning
       >
         <Image
           className={styles.logo}
@@ -462,23 +491,25 @@ export default function Home() {
           width={300}
           height={50}
           priority
+          suppressHydrationWarning
         />
-        <div style={{ fontSize: 16, fontWeight: 600 }}>
+        <div style={{ fontSize: 16, fontWeight: 600 }} suppressHydrationWarning>
           Code developed by BIM Unit
         </div>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>
+        <div style={{ fontSize: 18, fontWeight: 600 }} suppressHydrationWarning>
           Get Issues, Model Sets, Clash Tests, Clash Test Resources and Assigned
           Clashes
         </div>
-        <div style={{ fontSize: 16 }}>
+        <div style={{ fontSize: 16 }} suppressHydrationWarning>
           To get started with the API, you need to grant access to your data.
         </div>
-        <div className={styles.ctas}>
+        <div className={styles.ctas} suppressHydrationWarning>
           <a
             className={styles.primary}
             href="https://developer.api.autodesk.com/authentication/v2/authorize?response_type=code&client_id=A6MyzsTNsRnVZKrpeFvunHTxSbA86kYJ9rnljOxjxnvB0KIl&redirect_uri=http://localhost:3000/&scope=data:read account:read data:write"
             rel="noopener noreferrer"
             ref={grantAccessLinkRef}
+            suppressHydrationWarning
           >
             <Image
               className={styles.logo}
@@ -486,6 +517,7 @@ export default function Home() {
               alt="Vercel logomark"
               width={20}
               height={20}
+              suppressHydrationWarning
             />
             Grant access to your data!
           </a>
@@ -499,35 +531,34 @@ export default function Home() {
                 justifyContent: "center",
                 padding: 5,
               }}
+              suppressHydrationWarning
             >
               Loading...
             </div>
           ) : (
             token && (
-              <div>
-                <Button
-                  variant="outlined"
-                  onClick={getProjects}
-                  sx={{
-                    width: 200,
-                    height: 45,
-                    backgroundColor: "gray",
-                    color: "white",
-                    borderRadius: 10,
-                    fontWeight: "bold",
-                    fontSize: 12,
-                    borderColor: "black",
-                  }}
-                >
-                  Get Projects
-                </Button>
-              </div>
+              <Button
+                variant="outlined"
+                onClick={getProjects}
+                sx={{
+                  width: 200,
+                  height: 45,
+                  backgroundColor: "gray",
+                  color: "white",
+                  borderRadius: 10,
+                  fontWeight: "bold",
+                  fontSize: 12,
+                  borderColor: "black",
+                }}
+              >
+                Get Projects
+              </Button>
             )
           )}
         </div>
 
         {token && projects.length > 0 && (
-          <div>
+          <div suppressHydrationWarning>
             <div
               style={{
                 display: "flex",
@@ -543,6 +574,7 @@ export default function Home() {
                   flexDirection: "column",
                   gap: 20,
                 }}
+                suppressHydrationWarning
               >
                 <div
                   style={{
@@ -557,6 +589,7 @@ export default function Home() {
                     display: "flex",
                     alignItems: "center",
                   }}
+                  suppressHydrationWarning
                 >
                   Selected Project: {selectedProject?.name}
                 </div>
@@ -574,12 +607,17 @@ export default function Home() {
                       fontSize: 12,
                       borderColor: "black",
                     }}
+                    suppressHydrationWarning
                   >
                     Fetch issues
                   </Button>
                 )}
               </div>
-              <ProjectsTable rows={projects} onRowClick={handleSelectProject} />
+              <ProjectsTable
+                rows={projects}
+                onRowClick={handleSelectProject}
+                suppressHydrationWarning
+              />
             </div>
 
             {persistentProjectName && issues.length > 0 && (
@@ -592,6 +630,7 @@ export default function Home() {
                   gap: 20,
                   marginBottom: 50,
                 }}
+                suppressHydrationWarning
               >
                 <div
                   style={{
@@ -599,6 +638,7 @@ export default function Home() {
                     flexDirection: "column",
                     gap: 20,
                   }}
+                  suppressHydrationWarning
                 >
                   <div
                     style={{
@@ -613,6 +653,7 @@ export default function Home() {
                       display: "flex",
                       alignItems: "center",
                     }}
+                    suppressHydrationWarning
                   >
                     Selected Issue:{" "}
                     {selectedIssue?.displayId
@@ -636,6 +677,7 @@ export default function Home() {
                         fontSize: 12,
                         borderColor: "black",
                       }}
+                      suppressHydrationWarning
                     >
                       Show Clashes
                     </Button>
@@ -647,11 +689,12 @@ export default function Home() {
           </div>
         )}
       </div>
-      <div className={styles.footer}>
+      <div className={styles.footer} suppressHydrationWarning>
         <a
           href="https://www.linkedin.com/company/su-yapi/posts/?feedView=all"
           target="_blank"
           rel="noopener noreferrer"
+          suppressHydrationWarning
         >
           <Image
             aria-hidden
@@ -659,6 +702,7 @@ export default function Home() {
             alt="Window icon"
             width={16}
             height={16}
+            suppressHydrationWarning
           />
           Linkedin
         </a>
@@ -666,6 +710,7 @@ export default function Home() {
           href="https://www.suyapi.com.tr/"
           target="_blank"
           rel="noopener noreferrer"
+          suppressHydrationWarning
         >
           <Image
             aria-hidden
@@ -673,6 +718,7 @@ export default function Home() {
             alt="Globe icon"
             width={16}
             height={16}
+            suppressHydrationWarning
           />
           Go to suyapi.com.tr →
         </a>
@@ -680,6 +726,7 @@ export default function Home() {
           href="https://www.linkedin.com/in/saman-khataei-ph-d-1334b5b6/"
           target="_blank"
           rel="noopener noreferrer"
+          suppressHydrationWarning
         >
           <Image
             aria-hidden
@@ -687,11 +734,16 @@ export default function Home() {
             alt="Window icon"
             width={16}
             height={16}
+            suppressHydrationWarning
           />
           Developed by: Alp Erdem →
         </a>
       </div>
-      <Modal onClose={() => setOpenModal(false)} open={openModal}>
+      <Modal
+        onClose={() => setOpenModal(false)}
+        open={openModal}
+        suppressHydrationWarning
+      >
         <div
           style={{
             width: "50%",
@@ -702,8 +754,10 @@ export default function Home() {
             top: "25%",
           }}
           id="viewerDiv"
+          suppressHydrationWarning
         >
           <Button
+            suppressHydrationWarning
             variant="outlined"
             color="primary"
             onClick={() => {
@@ -717,6 +771,29 @@ export default function Home() {
               //     ids: [16258],
               //   },
               // ]);
+
+              const jsonLeft = convertToJsonFormat(
+                [...new Set(lefModelElementIDs)].filter((id) => id),
+                leftModelName
+              );
+              const jsonRight = convertToJsonFormat(
+                [...new Set(rightModelElementIDs)].filter((id) => id),
+                rightModelName
+              );
+              const headers = [
+                { key: "item", label: "Element ID" },
+                { key: "model", label: "Model Name" },
+              ];
+              jsonToCsvExport({
+                data: jsonLeft,
+                headers,
+                filename: leftModelName,
+              });
+              jsonToCsvExport({
+                data: jsonRight,
+                headers,
+                filename: rightModelName,
+              });
             }}
             sx={{
               width: 200,

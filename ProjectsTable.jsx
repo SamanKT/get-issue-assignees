@@ -1,3 +1,4 @@
+"use client";
 import * as React from "react";
 import Paper from "@mui/material/Paper";
 import Table from "@mui/material/Table";
@@ -41,14 +42,22 @@ export default function ProjectsTable({ rows, onRowClick }) {
   };
 
   return (
-    <Paper sx={{ width: "100%", overflow: "hidden", mb: 4 }}>
-      <TableContainer sx={{ maxHeight: 440 }}>
-        <Typography variant="h6" gutterBottom component="div">
+    <Paper
+      sx={{ width: "100%", overflow: "hidden", mb: 4 }}
+      suppressHydrationWarning
+    >
+      <TableContainer sx={{ maxHeight: 440 }} suppressHydrationWarning>
+        <Typography
+          variant="h6"
+          gutterBottom
+          component="div"
+          suppressHydrationWarning
+        >
           Projects
         </Typography>
-        <Table stickyHeader aria-label="sticky table">
-          <TableHead>
-            <TableRow>
+        <Table stickyHeader aria-label="sticky table" suppressHydrationWarning>
+          <TableHead suppressHydrationWarning>
+            <TableRow suppressHydrationWarning>
               {columns.map((column) => (
                 <TableCell
                   key={column.id}
@@ -61,12 +70,13 @@ export default function ProjectsTable({ rows, onRowClick }) {
               ))}
             </TableRow>
           </TableHead>
-          <TableBody>
+          <TableBody suppressHydrationWarning>
             {rows
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
               .map((row, index) => {
                 return (
                   <TableRow
+                    suppressHydrationWarning
                     hover
                     ref={(ref) => rowRef.current.push({ [index]: ref })}
                     role="checkbox"
@@ -103,6 +113,7 @@ export default function ProjectsTable({ rows, onRowClick }) {
         page={page}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
+        suppressHydrationWarning
       />
     </Paper>
   );
